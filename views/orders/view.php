@@ -77,8 +77,8 @@
         </div>
     </div>
 
-<div class="col-md-3">
-        <?php if (in_array($_SESSION['user']['rola'], ['Admin', 'Vyroba', 'Logistika', 'Obchod'])): ?>
+    <div class="col-md-3">
+        <?php if (in_array($_SESSION['user']['rola'], ['Admin', 'Vyroba', 'Logistika', 'Obchod', 'Doprava'])): ?>
             <div class="card shadow-sm border-primary mb-4">
                 <div class="card-header bg-primary text-white fw-bold">
                     <i class="bi bi-truck me-2"></i> Správa stavu a logistiky
@@ -147,5 +147,32 @@
             });
             </script>
         <?php endif; ?>
-</div> <!-- /col-md-3 -->
-</div> <!-- /row -->
+
+        <div class="card shadow-sm border-0 mb-4 text-center py-3 bg-primary text-white">
+            <div class="card-body">
+                <div class="small opacity-75">Celková cena objednávky</div>
+                <div class="h2 mb-0 fw-bold"><?= number_format($order['celkova_suma'], 2, ',', ' ') ?> €</div>
+                <div class="small opacity-75">bez DPH</div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm border-0">
+            <div class="card-body">
+                <h6 class="fw-bold mb-3">Informácie</h6>
+                <div class="mb-3">
+                    <small class="text-muted d-block">Poznámka:</small>
+                    <div class="small"><?= nl2br(htmlspecialchars($order['poznamka'])) ?: '<em>Bez poznámky</em>' ?></div>
+                </div>
+                <div class="d-flex justify-content-between small mb-2">
+                    <span>Odhadovaný čas výroby:</span>
+                    <span class="fw-bold"><?= $order['celkovy_cas_vyroby_min'] ?> min</span>
+                </div>
+                <hr>
+                <button onclick="window.print()" class="btn btn-dark w-100 btn-sm">
+                    <i class="bi bi-printer me-2"></i> Vytlačiť podklady
+                </button>
+            </div>
+        </div>
+    </div> </div> ```
+
+Uložte to, bežte si spraviť kávu a vychutnajte si ten pocit, keď to pri otestovaní zaklapne presne tak, ako ste to navrhli! Sme na výbornej ceste.
