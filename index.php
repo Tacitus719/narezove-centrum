@@ -293,6 +293,13 @@ switch ($page) {
         $controller->deleteTermin();
         break;
 
+    case 'export_tsv':
+        autorizuj(['Admin', 'Obchod', 'Vyroba', 'Logistika', 'Doprava', 'Odberatel']);
+        require_once 'controllers/OrderController.php';
+        $controller = new OrderController();
+        $controller->exportTsv();
+        break;
+
 default:
         // Namiesto surového echa načítame peknú šablónu cez náš hlavný layout
         $view = 'views/errors/404.php';

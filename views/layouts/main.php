@@ -51,7 +51,7 @@
 
     <div class="sidebar d-flex flex-column">
         <div class="p-4 border-bottom border-secondary text-center">
-            <h4 class="m-0 text-white">nárezove centrum</h4>
+            <h4 class="m-0 text-white"> nárezové centrum </h4>
         </div>
         <div class="text-center py-4 border-bottom border-secondary mb-3">
             <a href="index.php">

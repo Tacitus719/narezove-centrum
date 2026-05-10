@@ -492,4 +492,72 @@ public function updateStatus() {
         $stmt->execute([$idTermin]);
         header("Location: index.php?page=view_order&id=$idObjednavky&success=termin_zmazany");
     }
+
+    public function exportTsv() {
+        $db = Database::connect();
+        $id = $_GET['id'];
+
+        // 1. Načítanie hlavičky objednávky
+        $stmtOrder = $db->prepare("SELECT cislo_objednavky FROM OBJEDNAVKA WHERE id_objednavka = ?");
+        $stmtOrder->execute([$id]);
+        $order = $stmtOrder->fetch();
+
+        if (!$order) die("Objednávka nenájdená.");
+
+        // 2. Načítanie položiek
+        $stmtItems = $db->prepare("
+            SELECT po.*, m.nazov_dekoru 
+            FROM POLOZKA_OBJEDNAVKY po 
+            LEFT JOIN MATERIAL m ON po.id_material = m.id_material 
+            WHERE po.id_objednavka = ?
+        ");
+        $stmtItems->execute([$id]);
+        $items = $stmtItems->fetchAll();
+
+        // 3. Nastavenie hlavičiek pre prehliadač
+        header('Content-Type: text/tab-separated-values; charset=utf-8');
+        header('Content-Disposition: attachment; filename="export_' . $order['cislo_objednavky'] . '.tsv"');
+        header('Pragma: no-cache');
+        header('Expires: 0');
+
+        // 4. Otvorenie výstupu
+        $output = fopen('php://output', 'w');
+
+        // --- TOTO JE TA OPRAVA: Pridáme UTF-8 BOM pre Excel ---
+        fwrite($output, "\xEF\xBB\xBF");
+
+        // 5. Zapísanie hlavičky stĺpcov
+        fputcsv($output, [
+            'Názov dielu', 
+            'Dĺžka (mm)', 
+            'Šírka (mm)', 
+            'Kusy', 
+            'Materiál', 
+            'Hrany (L-P-H-D)'
+        ], "\t");
+
+        // 6. Zapísanie dát
+        foreach ($items as $item) {
+            // Logika pre hrany (ak je ID hrany vyplnené, vypíšeme značku)
+            $hrany = [];
+            $hrany[] = $item['id_lava_hrana']  ? 'L' : '-';
+            $hrany[] = $item['id_prava_hrana'] ? 'P' : '-';
+            $hrany[] = $item['id_horna_hrana'] ? 'H' : '-';
+            $hrany[] = $item['id_dolna_hrana'] ? 'D' : '-';
+            
+            $hranyStr = implode(' ', $hrany);
+
+            fputcsv($output, [
+                $item['nazov_dielu'],
+                $item['dlzka_mm'],
+                $item['sirka_mm'],
+                $item['pocet_kusov'],
+                $item['nazov_dekoru'] ?? 'Neznámy',
+                $hranyStr
+            ], "\t");
+        }
+
+        fclose($output);
+        exit;
+    }
 }

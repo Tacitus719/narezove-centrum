@@ -229,6 +229,9 @@
                 <button onclick="window.print()" class="btn btn-dark w-100 btn-sm">
                     <i class="bi bi-printer me-2"></i> Vytlačiť podklady
                 </button>
+                <a href="index.php?page=export_tsv&id=<?= $order['id_objednavka'] ?>" class="btn btn-outline-success w-100 btn-sm mb-2">
+                    <i class="bi bi-file-earmark-spreadsheet me-2"></i> Export do TSV
+                </a>
                 <?php if (in_array($order['stav'], ['Vyrobená', 'Expedovaná'])): ?>
                     <hr>
                     <a href="index.php?page=create_complaint&order_id=<?= $order['id_objednavka'] ?>" class="btn btn-outline-danger w-100 btn-sm">

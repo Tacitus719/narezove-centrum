@@ -58,12 +58,9 @@ class DashboardController
 
         $stmtTerminy->execute($params);
         $terminy = $stmtTerminy->fetchAll();
-
-        if (!$terminy) $terminy = [];
-
+    
         $aktivneTerminy = [];
-        if (in_array($user['rola'], ['Admin', 'Obchod', 'Vyroba', 'Logistika', 'Doprava'])) {
-            // PRIDANÉ: o.id_objednavka hneď za t.*
+        if ($isStaff) {
             $sqlTerminy = "SELECT t.*, o.id_objednavka, o.cislo_objednavky, odb.obchodny_nazov 
                            FROM TERMIN t 
                            JOIN OBJEDNAVKA o ON t.OBJEDNAVKA_id_objednavka = o.id_objednavka 
@@ -71,6 +68,16 @@ class DashboardController
                            WHERE t.stav != 'Dokončený' 
                            ORDER BY t.datum_cas_od ASC";
             $aktivneTerminy = $db->query($sqlTerminy)->fetchAll();
+        } else {
+            // Odberateľ vidí len svoje termíny
+            $sqlTerminy = "SELECT t.*, o.id_objednavka, o.cislo_objednavky 
+                           FROM TERMIN t 
+                           JOIN OBJEDNAVKA o ON t.OBJEDNAVKA_id_objednavka = o.id_objednavka 
+                           WHERE o.id_odberatel = ? AND t.stav != 'Dokončený' 
+                           ORDER BY t.datum_cas_od ASC";
+            $stmt = $db->prepare($sqlTerminy);
+            $stmt->execute([$user['id_odberatel']]);
+            $aktivneTerminy = $stmt->fetchAll();
         }
 
         $view = 'views/dashboard/index.php';
