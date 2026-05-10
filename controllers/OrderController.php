@@ -158,21 +158,24 @@ class OrderController
     }
 
     // 3. Zobrazenie zoznamu objednávok
-    public function index()
+    public function index() 
     {
         $user = $_SESSION['user'];
         $db = Database::connect();
 
-        if ($user['rola'] === 'Admin') {
-            // Admin vidí všetko a vidí aj názov firmy, ktorá objednala
-            $stmt = $db->query("SELECT o.*, odb.obchodny_nazov 
-                            FROM OBJEDNAVKA o 
-                            LEFT JOIN ODBERATEL odb ON o.id_odberatel = odb.id_odberatel 
-                            ORDER BY o.created_at DESC");
+        // PRIDANÉ všetky interné roly vrátane Dopravy
+        if (in_array($user['rola'], ['Admin', 'Vyroba', 'Obchod', 'Logistika', 'Doprava'])) {
+            $stmt = $db->query("SELECT o.*, odb.obchodny_nazov, v.spz, v.znacka_model 
+                                FROM OBJEDNAVKA o 
+                                LEFT JOIN ODBERATEL odb ON o.id_odberatel = odb.id_odberatel 
+                                LEFT JOIN VOZIDLO v ON o.id_vozidlo = v.id_vozidlo
+                                ORDER BY o.created_at DESC");
             $orders = $stmt->fetchAll();
         } else {
-            // Odberateľ vidí len svoje
-            $stmt = $db->prepare("SELECT * FROM OBJEDNAVKA WHERE id_odberatel = ? ORDER BY created_at DESC");
+            $stmt = $db->prepare("SELECT o.*, v.spz, v.znacka_model 
+                                  FROM OBJEDNAVKA o 
+                                  LEFT JOIN VOZIDLO v ON o.id_vozidlo = v.id_vozidlo
+                                  WHERE o.id_odberatel = ? ORDER BY o.created_at DESC");
             $stmt->execute([$user['id_odberatel']]);
             $orders = $stmt->fetchAll();
         }
@@ -180,7 +183,6 @@ class OrderController
         $view = 'views/orders/index.php';
         require_once 'views/layouts/main.php';
     }
-
     // 4. Zobrazenie detailu konkrétnej objednávky
     public function show()
     {
@@ -193,8 +195,8 @@ class OrderController
             exit;
         }
 
-        // UPRAVENÉ: Ak je Admin, nefiltrujeme podľa id_pouzivatel / id_odberatel
-        if ($user['rola'] === 'Admin') {
+        // UPRAVENÉ: Ak ide o zamestnanca firmy (Admin, Výroba, Doprava atď.), má prístup k zobrazeniu všetkých objednávok
+        if (in_array($user['rola'], ['Admin', 'Vyroba', 'Obchod', 'Logistika', 'Doprava'])) {
             $stmt = $db->prepare("SELECT * FROM OBJEDNAVKA WHERE id_objednavka = ?");
             $stmt->execute([$orderId]);
         } else {
@@ -225,29 +227,66 @@ class OrderController
         $stmtItems->execute([$orderId]);
         $items = $stmtItems->fetchAll();
 
+        $vozidla = $db->query("SELECT * FROM VOZIDLO WHERE is_active = 1")->fetchAll();
+        
         $view = 'views/orders/view.php';
         require_once 'views/layouts/main.php';
     }
 
     // 5. Aktualizácia stavu objednávky (pre Admina, Obchod, Výroba)
-    public function updateStatus()
-    {
-        $db = Database::connect();
-        $orderId = $_POST['id_objednavka'] ?? null;
-        $novyStav = $_POST['novy_stav'] ?? null;
+public function updateStatus() {
+    $db = Database::connect();
+    $id_obj = $_POST['id_objednavka'];
+    $novyStavObj = $_POST['novy_stav'];
+    $id_vozidlo = $_POST['id_vozidlo'] ?? null;
+    $pouzivatel_id = $_SESSION['user']['id_pouzivatel'];
 
-        if ($orderId && $novyStav) {
-            try {
-                $stmt = $db->prepare("UPDATE OBJEDNAVKA SET stav = ? WHERE id_objednavka = ?");
-                $stmt->execute([$novyStav, $orderId]);
+    try {
+        $db->beginTransaction();
 
-                header("Location: index.php?page=view_order&id=" . $orderId . "&success=status_updated");
-                exit;
-            } catch (Exception $e) {
-                die("Chyba pri zmene stavu: " . $e->getMessage());
-            }
+        // 1. Aktualizácia stavu OBJEDNÁVKY a priradenie vozidla (ak je poslané)
+        $sqlObj = "UPDATE OBJEDNAVKA SET stav = ?";
+        $paramsObj = [$novyStavObj];
+        
+        if ($id_vozidlo) {
+            $sqlObj .= ", id_vozidlo = ?";
+            $paramsObj[] = $id_vozidlo;
         }
+        
+        $sqlObj .= " WHERE id_objednavka = ?";
+        $paramsObj[] = $id_obj;
+        $db->prepare($sqlObj)->execute($paramsObj);
+
+        // 2. Logika pre TERMIN na základe stavu objednávky
+        $novyStavTermin = null;
+        
+        switch ($novyStavObj) {
+            case 'Vo výrobe':
+                $novyStavTermin = 'Prebieha';
+                break;
+            case 'Vyrobená':
+                $novyStavTermin = 'Na vývoz'; // Objednávka ostáva aktívna pre logistiku
+                break;
+            case 'Expedovaná':
+                $novyStavTermin = 'Dokončený'; // Definitívne vybavené
+                break;
+            case 'Zrušená':
+                $novyStavTermin = 'Zrušený';
+                break;
+        }
+
+        if ($novyStavTermin) {
+            $db->prepare("UPDATE TERMIN SET stav = ? WHERE OBJEDNAVKA_id_objednavka = ?")
+               ->execute([$novyStavTermin, $id_obj]);
+        }
+
+        $db->commit();
+        header("Location: index.php?page=view_order&id=$id_obj&success=1");
+    } catch (Exception $e) {
+        $db->rollBack();
+        die("Chyba synchronizácie: " . $e->getMessage());
     }
+}
 
     public function cancelOrder()
     {
@@ -280,76 +319,122 @@ class OrderController
     }
 
     // 6. (Voliteľné) Editácia objednávky - Toto je pokročilá funkcia, ktorá by umožnila upravovat objednávku, ale ponecháme ju zatím jako koncept pro budoucí rozšíření
-    public function edit()
-    {
+    public function edit() {
         $db = Database::connect();
         $id = $_GET['id'];
         $user = $_SESSION['user'];
 
-        // Načítame objednávku
         $stmt = $db->prepare("SELECT * FROM OBJEDNAVKA WHERE id_objednavka = ?");
         $stmt->execute([$id]);
         $order = $stmt->fetch();
 
-        // Kontrola: musí byť v stave 'Nová' a patriť používateľovi (ak nie je Admin)
         if (!$order || $order['stav'] !== 'Nová') {
-            die("Túto objednávku už nie je možné editovať.");
+            die("Túto objednávku nie je možné upraviť.");
         }
 
-        if ($user['rola'] !== 'Admin' && $order['id_odberatel'] !== $user['id_odberatel']) {
-            die("Nemáte oprávnenie na editáciu tejto objednávky.");
-        }
+        // NAČÍTANIE POLOŽIEK - uistite sa, že názvy stĺpcov sú presné (id_horna_hrana, atď.)
+        $stmtItems = $db->prepare("SELECT * FROM POLOZKA_OBJEDNAVKY WHERE id_objednavka = ?");
+        $stmtItems->execute([$id]);
+        $orderItems = $stmtItems->fetchAll();
 
-        // Načítame položky, materiály a hrany pre formulár
-        $items = $db->prepare("SELECT * FROM POLOZKA_OBJEDNAVKY WHERE id_objednavka = ?");
-        $items->execute([$id]);
-        $orderItems = $items->fetchAll();
-
+        // Načítanie materiálov a hrán pre selecty
         $materials = $db->query("SELECT * FROM MATERIAL WHERE is_active = 1 ORDER BY nazov_dekoru ASC")->fetchAll();
         $edges = $db->query("SELECT * FROM ABS_HRANA WHERE is_active = 1 ORDER BY nazov ASC")->fetchAll();
 
-        $view = 'views/orders/edit.php'; // Tu vytvoríme podobný formulár ako pri create.php
+        $view = 'views/orders/edit.php';
         require_once 'views/layouts/main.php';
     }
-
+    // 7. (Voliteľné) Uloženie upravenej objednávky - Toto by byla logika pro aktualizaci objednávky po editaci, včetně přepočítání ceny a času
     public function update()
-    {
-        $db = Database::connect();
-        $id_objednavka = $_POST['id_objednavka'];
-        $nazov = $_POST['nazov_projektu'];
-        $poznamka = $_POST['poznamka'];
-        $items = $_POST['items'] ?? [];
+        {
+            $db = Database::connect();
+            $idObjednavky = $_POST['id_objednavka'];
+            $nazovProjektu = $_POST['nazov_projektu'];
+            $poznamka = $_POST['poznamka'] ?? '';
+            $diely = $_POST['diely'] ?? [];
 
-        try {
-            $db->beginTransaction();
+            try {
+                $db->beginTransaction();
 
-            // 1. Aktualizácia hlavičky
-            $stmt = $db->prepare("UPDATE OBJEDNAVKA SET nazov_projektu = ?, poznamka = ? WHERE id_objednavka = ?");
-            $stmt->execute([$nazov, $poznamka, $id_objednavka]);
+                // Ceny do pamäte pre rýchly prepočet
+                $pricesMat = $db->query("SELECT id_material, cena_MJ FROM MATERIAL")->fetchAll(PDO::FETCH_KEY_PAIR);
+                $pricesEdge = $db->query("SELECT id_hrana, cena_bm FROM ABS_HRANA")->fetchAll(PDO::FETCH_KEY_PAIR);
 
-            // 2. Odstránenie starých položiek
-            $db->prepare("DELETE FROM POLOZKA_OBJEDNAVKY WHERE id_objednavka = ?")->execute([$id_objednavka]);
+                // 1. Aktualizácia hlavičky
+                $stmt = $db->prepare("UPDATE OBJEDNAVKA SET nazov_projektu = ?, poznamka = ? WHERE id_objednavka = ?");
+                $stmt->execute([$nazovProjektu, $poznamka, $idObjednavky]);
 
-            // 3. Vloženie nových/upravených položiek
-            foreach ($items as $item) {
-                $sql = "INSERT INTO POLOZKA_OBJEDNAVKY (id_objednavka, id_material, dlzka_mm, sirka_mm, pocet_ks) VALUES (?, ?, ?, ?, ?)";
-                $db->prepare($sql)->execute([
-                    $id_objednavka,
-                    $item['id_material'],
-                    $item['dlzka_mm'],
-                    $item['sirka_mm'],
-                    $item['pocet_ks']
-                ]);
+                // 2. Vymazanie starých položiek (je to najistejší spôsob, ako urobiť čistý update)
+                $db->prepare("DELETE FROM POLOZKA_OBJEDNAVKY WHERE id_objednavka = ?")->execute([$idObjednavky]);
+
+                $celkovaSumaObjednavky = 0;
+                $celkovyCasObjednavky = 0;
+
+                // 3. Vloženie nanovo (z upraveného poľa)
+                $stmtItem = $db->prepare("INSERT INTO POLOZKA_OBJEDNAVKY 
+                    (nazov_dielu, dlzka_mm, sirka_mm, pocet_kusov, rotacia_textury, cas_vyroby_min, poznamka, priloha_dielu, id_objednavka, id_material, id_horna_hrana, id_dolna_hrana, id_lava_hrana, id_prava_hrana) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+
+                foreach ($diely as $index => $diel) {
+                    $l = $diel['dlzka'];
+                    $w = $diel['sirka'];
+                    $ks = $diel['kusy'] ?? 1;
+                    $idMat = $diel['material'];
+                    $idHrana = !empty($diel['typ_hrany']) ? $diel['typ_hrany'] : null;
+
+                    // Prepočty (rovnaké ako pri tvorbe objednávky)
+                    $plochaM2 = ($l * $w) / 1000000;
+                    $cenaMat = $pricesMat[$idMat] ?? 0;
+                    $sumaDosky = $plochaM2 * $cenaMat * $ks;
+
+                    $metrazHran = 0;
+                    $h1 = isset($diel['h1']) ? $idHrana : null;
+                    $h2 = isset($diel['h2']) ? $idHrana : null;
+                    $h3 = isset($diel['h3']) ? $idHrana : null;
+                    $h4 = isset($diel['h4']) ? $idHrana : null;
+
+                    if ($h1) $metrazHran += $l;
+                    if ($h2) $metrazHran += $l;
+                    if ($h3) $metrazHran += $w;
+                    if ($h4) $metrazHran += $w;
+
+                    $metrazM = $metrazHran / 1000;
+                    $cenaHran = $pricesEdge[$idHrana] ?? 0;
+                    $sumaHranTotal = $metrazM * $cenaHran * $ks;
+
+                    $casDielu = round((($plochaM2 * 10) + ($metrazM * 0.5)) * $ks, 2);
+                    $celkovaSumaObjednavky += ($sumaDosky + $sumaHranTotal);
+                    $celkovyCasObjednavky += $casDielu;
+
+                    $stmtItem->execute([
+                        $diel['nazov'] ?: 'Dielec',
+                        $l,
+                        $w,
+                        $ks,
+                        0,
+                        $casDielu,
+                        '',
+                        null, // Pri update zatiaľ vynechávame znovu-nahrávanie súborov kvôli zložitosti
+                        $idObjednavky,
+                        $idMat,
+                        $h2,
+                        $h1,
+                        $h4,
+                        $h3
+                    ]);
+                }
+
+                // 4. Prepočet celkovej ceny na hlavičke objednávky
+                $stmtUpdate = $db->prepare("UPDATE OBJEDNAVKA SET celkova_suma = ?, celkovy_cas_vyroby_min = ? WHERE id_objednavka = ?");
+                $stmtUpdate->execute([$celkovaSumaObjednavky, $celkovyCasObjednavky, $idObjednavky]);
+
+                $db->commit();
+                header("Location: index.php?page=view_order&id=$idObjednavky&success=updated");
+                exit;
+            } catch (Exception $e) {
+                $db->rollBack();
+                die("Chyba pri aktualizácii: " . $e->getMessage());
             }
-
-            // 4. Prepočet celkovej sumy (voliteľné, ale odporúčané)
-            // Tu by mala nasledovať vaša kalkulačná logika, ktorú sme robili minule
-
-            $db->commit();
-            header("Location: index.php?page=view_order&id=$id_objednavka&success=updated");
-        } catch (Exception $e) {
-            $db->rollBack();
-            die("Chyba pri aktualizácii: " . $e->getMessage());
         }
-    }
+
 }

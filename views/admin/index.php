@@ -144,27 +144,6 @@ switch ($page) {
         $controller->updateVehicle();
         break;
 
-    case 'admin_edges': // Výpis ABS hrán
-        autorizuj(['Admin', 'Obchod']);
-        require_once 'controllers/AdminController.php';
-        $controller = new AdminController();
-        $controller->listEdges();
-        break;
-
-    case 'save_edge': // Uloženie novej hrany
-        autorizuj(['Admin', 'Obchod']);
-        require_once 'controllers/AdminController.php';
-        $controller = new AdminController();
-        $controller->saveEdge();
-        break;
-
-    case 'update_edge': // Úprava existujúcej hrany
-        autorizuj(['Admin', 'Obchod']);
-        require_once 'controllers/AdminController.php';
-        $controller = new AdminController();
-        $controller->updateEdge();
-        break;
-
     case 'dashboard':   // Toto je nástenka, ktorú vidí používateľ po prihlásení
         require_once 'controllers/DashboardController.php';
         $controller = new DashboardController();

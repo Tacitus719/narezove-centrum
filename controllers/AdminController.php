@@ -219,4 +219,178 @@ class AdminController
             die("Chyba pri aktualizácii: " . $e->getMessage());
         }
     }
+
+    public function listStaff()
+    {
+        $db = Database::connect();
+        // Vyberieme len interných zamestnancov (kde id_odberatel je NULL)
+        $stmt = $db->query("SELECT * FROM POUZIVATEL WHERE id_odberatel IS NULL ORDER BY priezvisko ASC");
+        $staff = $stmt->fetchAll();
+
+        $view = 'views/admin/staff.php';
+        require_once 'views/layouts/main.php';
+    }
+
+    public function saveStaff()
+    {
+        $db = Database::connect();
+        $meno = $_POST['meno'];
+        $priezvisko = $_POST['priezvisko'];
+        $email = $_POST['email'];
+        $rola = $_POST['rola'];
+        $heslo_hash = password_hash($_POST['heslo'], PASSWORD_DEFAULT);
+
+        try {
+            $stmt = $db->prepare("INSERT INTO POUZIVATEL (meno, priezvisko, email, heslo_hash, rola, is_active, id_odberatel) VALUES (?, ?, ?, ?, ?, 1, NULL)");
+            $stmt->execute([$meno, $priezvisko, $email, $heslo_hash, $rola]);
+            header("Location: index.php?page=admin_staff&success=1");
+        } catch (Exception $e) {
+            die("Chyba: " . $e->getMessage());
+        }
+    }
+
+    public function updateStaff()
+    {
+        $db = Database::connect();
+
+        $id = $_POST['id_pouzivatel'];
+        $meno = $_POST['meno'];
+        $priezvisko = $_POST['priezvisko'];
+        $email = $_POST['email'];
+        $rola = $_POST['rola'];
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+        $nove_heslo = $_POST['heslo'] ?? '';
+
+        try {
+            // Základný UPDATE
+            $sql = "UPDATE POUZIVATEL SET meno = ?, priezvisko = ?, email = ?, rola = ?, is_active = ? WHERE id_pouzivatel = ?";
+            $params = [$meno, $priezvisko, $email, $rola, $is_active, $id];
+
+            $stmt = $db->prepare($sql);
+            $stmt->execute($params);
+
+            // Ak bolo zadané nové heslo, zmeníme aj to
+            if (!empty($nove_heslo)) {
+                $hash = password_hash($nove_heslo, PASSWORD_DEFAULT);
+                $db->prepare("UPDATE POUZIVATEL SET heslo_hash = ? WHERE id_pouzivatel = ?")->execute([$hash, $id]);
+            }
+
+            header("Location: index.php?page=admin_staff&success=updated");
+            exit;
+        } catch (Exception $e) {
+            die("Chyba pri aktualizácii zamestnanca: " . $e->getMessage());
+        }
+    }
+
+    // --- VOZIDLÁ ---
+    public function listVehicles()
+    {
+        $db = Database::connect();
+        $stmt = $db->query("SELECT * FROM VOZIDLO ORDER BY spz ASC");
+        $vehicles = $stmt->fetchAll();
+
+        $view = 'views/admin/vehicles.php';
+        require_once 'views/layouts/main.php';
+    }
+
+    public function saveVehicle()
+    {
+        $db = Database::connect();
+        
+        $spz = $_POST['spz'] ?? '';
+        $znacka_model = $_POST['znacka_model'] ?? '';
+        $nosnost_kg = $_POST['nosnost_kg'] ?? 0;
+        $objem_m3 = str_replace(',', '.', $_POST['objem_m3'] ?? '0');
+        $stav = $_POST['stav'] ?? 'Dostupné';
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+
+        try {
+            $stmt = $db->prepare("INSERT INTO VOZIDLO (spz, znacka_model, nosnost_kg, objem_m3, stav, is_active) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$spz, $znacka_model, $nosnost_kg, $objem_m3, $stav, $is_active]);
+            header("Location: index.php?page=admin_vehicles&success=added");
+            exit;
+        } catch (Exception $e) {
+            die("Chyba pri ukladaní vozidla (Možno duplicitná ŠPZ?): " . $e->getMessage());
+        }
+    }
+
+    public function updateVehicle()
+    {
+        $db = Database::connect();
+        
+        $id_vozidlo = $_POST['id_vozidlo'] ?? null;
+        $spz = $_POST['spz'] ?? '';
+        $znacka_model = $_POST['znacka_model'] ?? '';
+        $nosnost_kg = $_POST['nosnost_kg'] ?? 0;
+        $objem_m3 = str_replace(',', '.', $_POST['objem_m3'] ?? '0');
+        $stav = $_POST['stav'] ?? 'Dostupné';
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+
+        if (!$id_vozidlo) die("Chýba ID vozidla.");
+
+        try {
+            $stmt = $db->prepare("UPDATE VOZIDLO SET spz = ?, znacka_model = ?, nosnost_kg = ?, objem_m3 = ?, stav = ?, is_active = ? WHERE id_vozidlo = ?");
+            $stmt->execute([$spz, $znacka_model, $nosnost_kg, $objem_m3, $stav, $is_active, $id_vozidlo]);
+            header("Location: index.php?page=admin_vehicles&success=updated");
+            exit;
+        } catch (Exception $e) {
+            die("Chyba pri aktualizácii vozidla: " . $e->getMessage());
+        }
+    }
+
+    // --- HRANY (ABS) ---
+    public function listEdges()
+    {
+        $db = Database::connect();
+        $stmt = $db->query("SELECT * FROM ABS_HRANA ORDER BY nazov ASC");
+        $edges = $stmt->fetchAll();
+
+        $view = 'views/admin/edges.php';
+        require_once 'views/layouts/main.php';
+    }
+
+    public function saveEdge()
+    {
+        $db = Database::connect();
+        
+        $nazov = $_POST['nazov'] ?? '';
+        $kod_vyrobcu = $_POST['kod_vyrobcu'] ?? '';
+        $hrubka_mm = $_POST['hrubka_mm'] ?? 0;
+        $sirka_mm = $_POST['sirka_mm'] ?? 0;
+        $cena_bm = str_replace(',', '.', $_POST['cena_bm'] ?? '0');
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+
+        try {
+            $stmt = $db->prepare("INSERT INTO ABS_HRANA (nazov, kod_vyrobcu, hrubka_mm, sirka_mm, cena_bm, is_active) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$nazov, $kod_vyrobcu, $hrubka_mm, $sirka_mm, $cena_bm, $is_active]);
+            header("Location: index.php?page=admin_edges&success=added");
+            exit;
+        } catch (Exception $e) {
+            die("Chyba pri ukladaní hrany: " . $e->getMessage());
+        }
+    }
+
+    public function updateEdge()
+    {
+        $db = Database::connect();
+        
+        $id_hrana = $_POST['id_hrana'] ?? null;
+        $nazov = $_POST['nazov'] ?? '';
+        $kod_vyrobcu = $_POST['kod_vyrobcu'] ?? '';
+        $hrubka_mm = $_POST['hrubka_mm'] ?? 0;
+        $sirka_mm = $_POST['sirka_mm'] ?? 0;
+        $cena_bm = str_replace(',', '.', $_POST['cena_bm'] ?? '0');
+        $is_active = isset($_POST['is_active']) ? 1 : 0;
+
+        if (!$id_hrana) die("Chýba ID hrany.");
+
+        try {
+            $stmt = $db->prepare("UPDATE ABS_HRANA SET nazov = ?, kod_vyrobcu = ?, hrubka_mm = ?, sirka_mm = ?, cena_bm = ?, is_active = ? WHERE id_hrana = ?");
+            $stmt->execute([$nazov, $kod_vyrobcu, $hrubka_mm, $sirka_mm, $cena_bm, $is_active, $id_hrana]);
+            header("Location: index.php?page=admin_edges&success=updated");
+            exit;
+        } catch (Exception $e) {
+            die("Chyba pri aktualizácii hrany: " . $e->getMessage());
+        }
+    }
 }

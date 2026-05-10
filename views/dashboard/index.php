@@ -44,63 +44,71 @@
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-8">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white py-3">
-                <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-calendar3 me-2"></i> Termínovník (Najbližšie odovzdania)</h5>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0 align-middle">
-                        <thead class="table-light small">
-                            <tr>
-                                <th class="ps-3">TERMÍN</th>
-                                <th>PROJEKT</th>
-                                <th>STAV</th>
-                                <th class="text-end pe-3">AKCIA</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php if (empty($terminovnik)): ?>
-                                <tr>
-                                    <td colspan="4" class="text-center py-4 text-muted">Žiadne blízke termíny.</td>
-                                </tr>
-                            <?php else: ?>
-                                <?php foreach ($terminovnik as $t):
-                                    $dnes = new DateTime();
-                                    $termin = new DateTime($t['datum_cas_od']); // OPRAVA: Používame datum_cas_od z tabuľky TERMIN
-                                    $diff = $dnes->diff($termin)->days;
-                                    $color = ($diff <= 2) ? 'danger' : 'warning';
-                                ?>
-                                    <tr>
-                                        <td class="ps-3">
-                                            <div class="badge bg-<?= $color ?>-subtle text-<?= $color ?> p-2">
-                                                <?= date('d.m.Y H:i', strtotime($t['datum_cas_od'])) ?>
-                                            </div>
-                                        </td>
-                                        <td>
-                                            <div class="fw-bold"><?= htmlspecialchars($t['nazov_projektu']) ?></div>
-                                            <small class="text-muted"><?= htmlspecialchars($t['cislo_objednavky']) ?></small>
-                                        </td>
-                                        <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($t['termin_stav'] ?? 'Naplánovaný') ?></span></td>
-                                        <td class="text-end pe-3">
-                                            <a href="index.php?page=view_order&id=<?= $t['id_objednavka'] ?>" class="btn btn-sm btn-outline-primary">Detail</a>
-                                        </td>
-                                    </tr>
-                                <?php endforeach; ?>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white fw-bold py-3">
+        <i class="bi bi-calendar3 me-2 text-primary"></i> Najbližšie naplánované termíny
     </div>
+    <div class="card-body p-0">
+        <?php if (!empty($terminy)): ?>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <tbody>
+                        <?php foreach ($terminy as $t): ?>
+                            <tr>
+                                <!-- Termín udalosti -->
+                                <td class="text-nowrap ps-4" style="width: 180px;">
+                                    <i class="bi bi-clock text-primary me-2"></i>
+                                    <strong><?= date('d.m.Y', strtotime($t['datum_cas_od'])) ?></strong>
+                                    <span class="text-muted ms-1"><?= date('H:i', strtotime($t['datum_cas_od'])) ?></span>
+                                </td>
+                                
+                                <!-- Informácie o objednávke a odberateľovi -->
+                                <td>
+                                    <div class="fw-bold mb-1">
+                                        <a href="index.php?page=view_order&id=<?= $t['id_objednavka'] ?>" class="text-decoration-none text-dark">
+                                            <?= htmlspecialchars($t['cislo_objednavky']) ?>
+                                        </a>
+                                    </div>
+                                    <div class="small text-muted">
+                                        <i class="bi bi-building me-1"></i> 
+                                        <?= htmlspecialchars($t['obchodny_nazov'] ?? 'Interná zákazka') ?>
+                                        <span class="mx-2">|</span>
+                                        <i class="bi bi-folder2-open me-1"></i> 
+                                        <?= htmlspecialchars($t['nazov_projektu']) ?>
+                                    </div>
+                                </td>
+
+                                <!-- Stav termínu -->
+                                <td class="text-end pe-4">
+                                    <?php
+                                        $stavClass = 'bg-secondary';
+                                        if ($t['stav_terminu'] === 'Naplánovaný') $stavClass = 'bg-info text-dark';
+                                        if ($t['stav_terminu'] === 'Prebieha') $stavClass = 'bg-warning text-dark';
+                                        if ($t['stav_terminu'] === 'Dokončený') $stavClass = 'bg-success';
+                                    ?>
+                                    <span class="badge <?= $stavClass ?> shadow-sm">
+                                        <?= htmlspecialchars($t['stav_terminu']) ?>
+                                    </span>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php else: ?>
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-calendar-x fs-1 d-block mb-3"></i>
+                Aktuálne nie sú naplánované žiadne nadchádzajúce udalosti.
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+
 
     <div class="col-md-4">
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body py-4 text-center">
-                <h5 class="fw-bold mb-3">Potrebujete narezť?</h5>
+                <h5 class="fw-bold mb-3">Sem môžete vkladať nové objednávky</h5>
                 <a href="index.php?page=new_order" class="btn btn-primary w-100 py-2">
                     <i class="bi bi-plus-circle me-2"></i> Vytvoriť novú objednávku
                 </a>
