@@ -39,10 +39,7 @@
             flex-grow: 1;
         }
 
-        .topbar {
-            background-color: white;
-            border-bottom: 1px solid #e9ecef;
-        }
+        <div class="topbar p-3 d-flex justify-content-end align-items-center shadow-sm bg-white"><div class="d-flex align-items-center"><span class="me-4 border-end pe-4"><i class="bi bi-person-circle fs-5 me-1 align-middle text-primary"></i><strong class="align-middle"><?php echo isset($_SESSION['user']) ? htmlspecialchars($_SESSION['user']['meno'] . ' ' . $_SESSION['user']['priezvisko']) : 'Používateľ'; ?></strong><span class="badge bg-secondary ms-2 align-middle"><?php echo isset($_SESSION['user']) ? htmlspecialchars($_SESSION['user']['rola']) : ''; ?></span></span><a href="index.php?page=logout" class="btn btn-sm btn-outline-danger shadow-sm"><i class="bi bi-box-arrow-right me-1"></i>Odhlásiť sa </a></div></div>
     </style>
 </head>
 
@@ -54,8 +51,12 @@
 
     <div class="sidebar d-flex flex-column">
         <div class="p-4 border-bottom border-secondary text-center">
-            <h4 class="m-0 text-white">PROMA</h4>
-            <small class="text-muted">Nárezové centrum</small>
+            <h4 class="m-0 text-white">nárezove centrum</h4>
+        </div>
+        <div class="text-center py-4 border-bottom border-secondary mb-3">
+            <a href="index.php">
+                <img src="public/logo.png" alt="PROMA Logo" style="max-height: 45px; max-width: 90%; object-fit: contain;">
+            </a>
         </div>
 
         <div class="mt-3">
@@ -74,19 +75,20 @@
                 </a>
             <?php endif; ?>
 
-            <a href="index.php?page=claims" class="<?= $page == 'claims' ? 'active' : '' ?>">
+            <a href="index.php?page=complaints" class="<?= $page == 'complaints' ? 'active' : '' ?>">
                 <i class="bi bi-tools me-2"></i> Reklamácie
             </a>
 
-            <?php if (in_array($_SESSION['user']['rola'], ['Admin', 'Odberatel'])): ?>
-                <a href="index.php?page=admin_materials" class="<?= $page == 'admin_materials' ? 'active' : '' ?>">
-                    <i class="bi bi-layers me-2"></i> Katalóg materiálov
-                </a>
-            <?php endif; ?>
-            <?php if (isset($_SESSION['user']) && in_array($_SESSION['user']['rola'], ['Admin', 'Obchod'])): ?>
-                <a href="index.php?page=admin_edges" class="<?= $page == 'admin_edges' ? 'active' : '' ?>">
-                    <i class="bi bi-rulers me-2"></i> ABS Hrany
-                </a>
+            <?php if (in_array($_SESSION['user']['rola'], ['Admin', 'Obchod'])): ?>
+                <div class="mt-4">
+                    <h6 class="ps-3 text-uppercase text-muted small fw-bold">Katalógy</h6>
+                    <a href="index.php?page=admin_materials" class="<?= $page == 'admin_materials' ? 'active' : '' ?>">
+                        <i class="bi bi-layers me-2"></i> Plošný materiál
+                    </a>
+                    <a href="index.php?page=admin_edges" class="<?= $page == 'admin_edges' ? 'active' : '' ?>">
+                        <i class="bi bi-usb-drive me-2"></i> ABS Hrany
+                    </a>
+                </div>
             <?php endif; ?>
 
             <?php if (isset($_SESSION['user']) && $_SESSION['user']['rola'] === 'Admin'): ?>
@@ -103,23 +105,23 @@
                     </a>
                 </div>
             <?php endif; ?>
-            
-        </div>
 
-        <div class="mt-auto mb-3">
-            <a href="index.php?page=logout" class="text-danger"><i class="bi bi-box-arrow-left me-2"></i> Odhlásiť sa</a>
         </div>
     </div>
 
     <div class="main-content d-flex flex-column">
 
-        <div class="topbar p-3 d-flex justify-content-end align-items-center shadow-sm">
-            <div class="dropdown">
-                <span class="me-3">
-                    <i class="bi bi-person-circle fs-5 me-1 align-middle"></i>
-                    <strong><?php echo $user ? htmlspecialchars($user['meno'] . ' ' . $user['priezvisko']) : 'Používateľ'; ?></strong>
-                    <span class="badge bg-secondary ms-1"><?php echo $user ? htmlspecialchars($user['rola']) : ''; ?></span>
+        <div class="topbar p-3 d-flex justify-content-end align-items-center shadow-sm bg-white">
+            <div class="d-flex align-items-center">
+                <span class="me-4 border-end pe-4">
+                    <i class="bi bi-person-circle fs-5 me-1 align-middle text-primary"></i>
+                    <strong class="align-middle"><?php echo isset($_SESSION['user']) ? htmlspecialchars($_SESSION['user']['meno'] . ' ' . $_SESSION['user']['priezvisko']) : 'Používateľ'; ?></strong>
+                    <span class="badge bg-secondary ms-2 align-middle"><?php echo isset($_SESSION['user']) ? htmlspecialchars($_SESSION['user']['rola']) : ''; ?></span>
                 </span>
+
+                <a href="index.php?page=logout" class="btn btn-sm btn-outline-danger shadow-sm">
+                    <i class="bi bi-box-arrow-right me-1"></i> Odhlásiť sa
+                </a>
             </div>
         </div>
 

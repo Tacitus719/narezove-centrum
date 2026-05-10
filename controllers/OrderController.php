@@ -56,24 +56,24 @@ class OrderController
             $idObjednavky = $db->lastInsertId();
 
             // --- ZÁPIS DO TABUĽKY TERMIN (Termínovník) ---
-            $terminOd = $_POST['termin_od'] ?? null;
-            $terminDo = $_POST['termin_do'] ?? null;
+            // 5. Uloženie do termínovníka
+            $terminOdberu = $_POST['termin_odberu'] ?? date('Y-m-d', strtotime('+3 days'));
+            
+            // Vygenerujeme presné časy pre databázu (od rána do poobedia)
+            $datumOd = $terminOdberu . ' 08:00:00';
+            $datumDo = $terminOdberu . ' 16:00:00';
 
-            if ($terminOd) {
-                $stmtTermin = $db->prepare("INSERT INTO TERMIN 
-                    (typ_terminu, datum_cas_od, datum_cas_do, stav, poznamka, OBJEDNAVKA_id_objednavka, POUZIVATEL_id_pouzivatel) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)");
+            // Doplnili sme datum_cas_do do SQL príkazu
+            $stmtTermin = $db->prepare("INSERT INTO TERMIN (typ_terminu, datum_cas_od, datum_cas_do, stav, OBJEDNAVKA_id_objednavka, POUZIVATEL_id_pouzivatel) VALUES (?, ?, ?, ?, ?, ?)");
+            $stmtTermin->execute([
+                'Výroba', 
+                $datumOd, 
+                $datumDo, 
+                'Naplánovaný', 
+                $idObjednavky, 
+                $user['id_pouzivatel']
+            ]);
 
-                $stmtTermin->execute([
-                    'Výroba',           // typ_terminu (podľa vášho ENUM)
-                    $terminOd,
-                    $terminDo ?: $terminOd,
-                    'Naplánovaný',      // stav (podľa vášho ENUM)
-                    'Termín pridaný automaticky pri vytvorení objednávky',
-                    $idObjednavky,
-                    $user['id_pouzivatel']
-                ]);
-            }
             $celkovaSumaObjednavky = 0;
             $celkovyCasObjednavky = 0;
             $uploadDir = 'public/uploads/atypy/';
@@ -158,24 +158,32 @@ class OrderController
     }
 
     // 3. Zobrazenie zoznamu objednávok
-    public function index() 
+    public function index()
     {
         $user = $_SESSION['user'];
         $db = Database::connect();
 
-        // PRIDANÉ všetky interné roly vrátane Dopravy
-        if (in_array($user['rola'], ['Admin', 'Vyroba', 'Obchod', 'Logistika', 'Doprava'])) {
-            $stmt = $db->query("SELECT o.*, odb.obchodny_nazov, v.spz, v.znacka_model 
-                                FROM OBJEDNAVKA o 
-                                LEFT JOIN ODBERATEL odb ON o.id_odberatel = odb.id_odberatel 
-                                LEFT JOIN VOZIDLO v ON o.id_vozidlo = v.id_vozidlo
-                                ORDER BY o.created_at DESC");
+        // 1. Definujeme si, kto je interný personál
+        $isStaff = in_array($user['rola'], ['Admin', 'Vyroba', 'Obchod', 'Logistika', 'Doprava']);
+
+        if ($isStaff) {
+            // ZÁKLADNÝ SQL PRE PERSONÁL
+            $sql = "SELECT o.*, odb.obchodny_nazov, v.znacka_model, v.spz 
+                    FROM OBJEDNAVKA o 
+                    LEFT JOIN ODBERATEL odb ON o.id_odberatel = odb.id_odberatel
+                    LEFT JOIN VOZIDLO v ON o.id_vozidlo = v.id_vozidlo";
+
+            // ŠPECIÁLNY FILTER PRE LOGISTIKU A DOPRAVU
+            if (in_array($user['rola'], ['Logistika', 'Doprava'])) {
+                $sql .= " WHERE o.stav IN ('Vo výrobe', 'Vyrobená', 'Expedovaná')";
+            }
+
+            $sql .= " ORDER BY o.created_at DESC";
+            $stmt = $db->query($sql);
             $orders = $stmt->fetchAll();
         } else {
-            $stmt = $db->prepare("SELECT o.*, v.spz, v.znacka_model 
-                                  FROM OBJEDNAVKA o 
-                                  LEFT JOIN VOZIDLO v ON o.id_vozidlo = v.id_vozidlo
-                                  WHERE o.id_odberatel = ? ORDER BY o.created_at DESC");
+            // SQL PRE ODBERATEĽA (vidí len svoje)
+            $stmt = $db->prepare("SELECT * FROM OBJEDNAVKA WHERE id_odberatel = ? ORDER BY created_at DESC");
             $stmt->execute([$user['id_odberatel']]);
             $orders = $stmt->fetchAll();
         }
@@ -436,5 +444,52 @@ public function updateStatus() {
                 die("Chyba pri aktualizácii: " . $e->getMessage());
             }
         }
+                // --- MANAŽMENT TERMÍNOV ---
 
+    public function addTermin() {
+        $db = Database::connect();
+        $user = $_SESSION['user'];
+
+        $idObjednavky = $_POST['id_objednavka'];
+        $typTerminu = $_POST['typ_terminu'];
+        
+        // Ak si zvolili "Iné", použijeme ich vlastný text
+        if ($typTerminu === 'Iné...') {
+            $typTerminu = $_POST['typ_terminu_vlastne'] ?: 'Nezaradený termín';
+        }
+
+        $datum = $_POST['datum'];
+        $cas = $_POST['cas'] ?: '12:00'; // Predvolený čas, ak nezadajú
+        
+        $datumCasOd = $datum . ' ' . $cas . ':00';
+        $datumCasDo = $datumCasOd; // Zatiaľ si to zjednodušíme a "do" dáme rovnako
+
+        try {
+            $stmt = $db->prepare("INSERT INTO TERMIN (typ_terminu, datum_cas_od, datum_cas_do, stav, OBJEDNAVKA_id_objednavka, POUZIVATEL_id_pouzivatel) VALUES (?, ?, ?, 'Naplánovaný', ?, ?)");
+            $stmt->execute([$typTerminu, $datumCasOd, $datumCasDo, $idObjednavky, $user['id_pouzivatel']]);
+            header("Location: index.php?page=view_order&id=$idObjednavky&success=termin_pridany");
+        } catch (Exception $e) {
+            die("Chyba pri pridávaní termínu: " . $e->getMessage());
+        }
+    }
+
+    public function completeTermin() {
+        $db = Database::connect();
+        $idTermin = $_GET['id_termin'];
+        $idObjednavky = $_GET['id_objednavka'];
+        
+        $stmt = $db->prepare("UPDATE TERMIN SET stav = 'Dokončený' WHERE id_termin = ?");
+        $stmt->execute([$idTermin]);
+        header("Location: index.php?page=view_order&id=$idObjednavky&success=termin_dokonceny");
+    }
+
+    public function deleteTermin() {
+        $db = Database::connect();
+        $idTermin = $_GET['id_termin'];
+        $idObjednavky = $_GET['id_objednavka'];
+        
+        $stmt = $db->prepare("DELETE FROM TERMIN WHERE id_termin = ?");
+        $stmt->execute([$idTermin]);
+        header("Location: index.php?page=view_order&id=$idObjednavky&success=termin_zmazany");
+    }
 }

@@ -195,8 +195,8 @@ switch ($page) {
         $controller->show();
         break;
 
-    case 'update_order_status':     // Toto je akcia, která umožní aktualizovat stav objednávky - Odberateľ může aktualizovat pouze své objednávky, Admin může aktualizovat jakoukoliv objednávku
-        autorizuj(['Admin', 'Obchod', 'Vyroba']);
+    case 'update_order_status':     
+        autorizuj(['Admin', 'Obchod', 'Vyroba', 'Logistika', 'Doprava']); // Toto je akcia, která umožní změnit stav objednávky - přístupné pro Admina, Obchod, Výrobu, Logistiku a Dopravu (Odberatel to nepotrebuje vidět)
         require_once 'controllers/OrderController.php';
         $controller = new OrderController();
         $controller->updateStatus();
@@ -221,6 +221,76 @@ switch ($page) {
         require_once 'controllers/OrderController.php';
         $controller = new OrderController();
         $controller->update();
+        break;
+    
+    case 'complaints':  // Toto je akcia, která zobrazí zoznam reklamácií - přístupné pro Admina, Obchod a Výrobu (Logistika to nepotrebuje vidět)  
+        autorizuj(['Admin', 'Vyroba', 'Obchod', 'Odberatel']); // Logistika to nepotrebuje vidieť
+        require_once 'controllers/ComplaintController.php';
+        $controller = new ComplaintController();
+        $controller->index();
+        break;
+
+    case 'create_complaint':    // funkcia pre formulár reklamácií
+        autorizuj(['Odberatel', 'Admin', 'Obchod']);
+        require_once 'controllers/ComplaintController.php';
+        $controller = new ComplaintController();
+        $controller->create();
+        break;
+
+    case 'store_complaint':   // funkcia pro uložení reklamace do databázy
+        autorizuj(['Odberatel', 'Admin', 'Obchod']);
+        require_once 'controllers/ComplaintController.php';
+        $controller = new ComplaintController();
+        $controller->store();
+        break;
+
+    case 'view_complaint':
+        autorizuj(['Admin', 'Vyroba', 'Obchod', 'Odberatel']);
+        require_once 'controllers/ComplaintController.php';
+        $controller = new ComplaintController();
+        $controller->show();
+        break;
+
+    case 'update_complaint_status':
+        autorizuj(['Admin', 'Vyroba', 'Obchod']); // Odberateľ nemôže meniť stav!
+        require_once 'controllers/ComplaintController.php';
+        $controller = new ComplaintController();
+        $controller->updateStatus();
+        break;
+    
+    case 'view_complaint':
+        autorizuj(['Admin', 'Vyroba', 'Obchod', 'Odberatel']);
+        require_once 'controllers/ComplaintController.php';
+        $controller = new ComplaintController();
+        $controller->show();
+        break;
+
+    case 'update_complaint_status':
+        autorizuj(['Admin', 'Vyroba', 'Obchod']);
+        require_once 'controllers/ComplaintController.php';
+        $controller = new ComplaintController();
+        $controller->updateStatus();
+        break;
+    
+    case 'add_termin':
+        autorizuj(['Admin', 'Obchod', 'Vyroba', 'Logistika', 'Doprava']);
+        require_once 'controllers/OrderController.php';
+        $controller = new OrderController();
+        $controller->addTermin();
+        break;
+
+    case 'complete_termin':
+        autorizuj(['Admin', 'Obchod', 'Vyroba', 'Logistika', 'Doprava']);
+        require_once 'controllers/OrderController.php';
+        $controller = new OrderController();
+        $controller->completeTermin();
+        break;
+
+    case 'delete_termin':
+        autorizuj(['Admin', 'Obchod', 'Vyroba']); // Len vyššia moc môže mazať!
+        require_once 'controllers/OrderController.php';
+        $controller = new OrderController();
+        $controller->deleteTermin();
         break;
 
 default:

@@ -23,12 +23,9 @@
             <hr class="my-4" />
             <div class="row mb-3">
                 <div class="col-md-6">
-                    <label class="form-label fw-bold">Požadovaný termín od:</label>
-                    <input type="datetime-local" name="termin_od" class="form-control" required>
-                </div>
-                <div class="col-md-6">
-                    <label class="form-label fw-bold">Požadovaný termín do:</label>
-                    <input type="datetime-local" name="termin_do" class="form-control">
+                    <label class="form-label fw-bold">Požadovaný termín odberu <span class="text-danger">*</span></label>
+                    <input type="date" class="form-control" name="termin_odberu" value="<?= date('Y-m-d', strtotime('+3 days')) ?>" required>
+                    <small class="text-muted">Štandardná doba výroby sú 3 pracovné dni.</small>
                 </div>
             </div>
         </div>
